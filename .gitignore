@@ -1,0 +1,17 @@
+# !encoding: utf-8
+
+# PyCharm file
+.idea
+
+.vscode
+
+# Python compiled file
+*.pyc
+
+# 临时文件不需要上传
+Classes/static/files
+
+# 七牛的也不需要
+Classes/.qiniu_pythonsdk_hostscache.json
+
+
