@@ -82,9 +82,14 @@ class ChatSocketHandler(tornado.websocket.WebSocketHandler):
         ChatSocketHandler.send_updates(chat)
 
 
+from .YTWSGroupChatController import YTWSGroupChatController
+
 class Application(tornado.web.Application):
     def __init__(self):
-        handlers = [(r"/", MainHandler), (r"/chatsocket", ChatSocketHandler)]
+        handlers = [(r"/", MainHandler), 
+                    (r"/chatsocket", ChatSocketHandler),
+                    (r"/stream/ws/gchat/([^/]+)?", YTWSGroupChatController)
+                    ]
         settings = dict(
             cookie_secret="__TODO:_GENERATE_YOUR_OWN_RANDOM_VALUE_HERE__",
             template_path=os.path.join(os.path.dirname(__file__), "templates"),

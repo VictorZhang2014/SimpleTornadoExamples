@@ -1,0 +1,321 @@
+<html>
+<head>
+
+</head>
+<body> 
+<h1>Yooul的全球群组实时交流Demo</h1>
+<br/>
+
+<div>
+<input type="text" value="" placeholder="输入号码" id="roomNumber" />
+<input type="button" value="新建会话" onclick="createSession()" id="createSessButton" />
+<label id="YourSelectedLanguage"></label>
+</div>
+<br/>
+<br/>
+<br/>
+
+<div>
+<select multiple style="width:100%;height:300px;" id="messageListOptions">
+</select> 
+</div>
+
+<div>
+<input type="text" value="" placeholder="请输入昵称" id="userName" />
+<input type="text" value="" placeholder="请输入内容" id="content" style="width:600px;" />
+<input type="button" value="发送" onclick="sendContent()" />
+</div>
+
+<br/>
+<br/>
+<br/>
+
+<!-- <table class="table table-bordered" id="messageImgs"> 
+    <tbody>
+        <tr>
+            <td><input type="file" id="filename" /></td>
+            <td><input type="button" value="发送图片" onclick="sendFile()" /></td> 
+        </tr>
+        <tr>
+            <td>Sachin</td>
+            <td>Mumbai</td>
+        </tr>
+    </tbody>
+</table> -->
+
+ 
+
+
+<!-- 模态框（Modal） -->
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" data-backdrop="static">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"> 
+                <h4 class="modal-title">
+                    选择你的母语语言
+                </h4>
+            </div>
+            <div class="modal-body">
+                <select id="yourlanguage">
+                    <option value="en">English</option>
+                    <option value="zh-Hans">中文（简体）</option>
+                    <option value="zh-Hant">中文（繁体）</option>
+                    <option value="th">泰语</option>
+                    <option value="id">印度尼西亚语</option>
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="myLanguageClick()">
+                    确定
+                </button>
+            </div>
+        </div><!-- /.modal-content -->
+    </div><!-- /.modal -->
+</div>
+
+
+<script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+<link rel="stylesheet" href="https://apps.bdimg.com/libs/bootstrap/3.2.0/css/bootstrap.min.css">
+<script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+<script>
+$('#myModal').modal(); 
+var yourSelectedLanguage = "";
+function myLanguageClick() {
+    yourSelectedLanguage = $("#yourlanguage").val();
+    $('#myModal').modal("hide"); 
+
+    var labellang = "";
+    if (yourSelectedLanguage == "en") {
+        labellang = "英语";
+    } else if (yourSelectedLanguage == "zh-Hans") {
+        labellang = "中文（简体）";
+    } else if (yourSelectedLanguage == "zh-Hant") {
+        labellang = "中文（繁体）";
+    } else if (yourSelectedLanguage == "id") {
+        labellang = "印度尼西亚";
+    } else if (yourSelectedLanguage == "th") {
+        labellang = "泰国";
+    }  
+    $("#YourSelectedLanguage").html("你选择的母语是：" + labellang);
+}
+
+function translateText(content, callback) {
+    $.ajax({ 
+        url: "/api/yooul1/texttranslate", 
+        method: "post",
+        data: { "content" : content, "targetlanguage" : yourSelectedLanguage },
+        dataType: "json", 
+        success: function(data){
+            callback(data)
+        },
+        error : function(e){ 
+            alert("status: " + e.status + " message : " + e.responseText);
+        }
+    });
+}
+
+
+
+
+
+    var ws = null;
+    var roomNumber = null;
+
+    function sendContent() {
+        var userName = document.getElementById("userName").value;
+        if (userName.length <= 0) {
+            document.getElementById("userName").focus();
+            alert("请输入昵称")
+            return
+        }
+        var content = document.getElementById("content").value;
+        if (content.length <= 0) {
+            document.getElementById("content").focus();
+            alert("请输入要发送的内容")
+            return 
+        }
+        if (ws == null) {
+            alert("请先连接服务器！");
+            return 
+        }
+        if (ws.readyState == WebSocketStateEnum.CLOSED || ws.readyState == WebSocketStateEnum.CLOSING) {
+            if (confirm("与服务器已断开连接，是否自动重连？")) {
+                createSession();
+            }
+            return 
+        }
+        // let data = {
+        //     "protocol" : ProtocolEnum.sendContent,
+        //     "userName": userName,
+        //     "roomNumber" : roomNumber,
+        //     "content" : content,
+        //     "language" : yourSelectedLanguage
+        // }
+        // let jsonData = JSON.stringify(data);
+        // ws.send(encodeByUTF8(jsonData));
+
+        sendData(ProtocolEnum.sendContent, roomNumber, userName, content)
+        document.getElementById("content").value = "";
+    }
+
+    function createSession() {
+        roomNumber = document.getElementById("roomNumber").value;
+        if (roomNumber.length <= 0) {
+            alert("请输入会话号！");
+            return;
+        }
+        connectToServer(roomNumber);
+        $("#createSessButton").remove();
+        $("#roomNumber").attr("disabled", "disabled");
+    }
+
+    // 查阅官方文档：https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
+    
+    function showMessages(text) {
+        var messageListOptions = document.getElementById("messageListOptions");
+        messageListOptions.options.add(new Option(text, ""))
+    }
+
+    function connectToServer(roomNumber) {
+        showMessages("正在连接服务器...");
+        var wsProtocol = 'https:' == document.location.protocol ? "wss:": "ws:";
+        ws = new WebSocket(wsProtocol + window.location.host + "/stream/ws/gchat/" + roomNumber)
+        ws.binaryType = "arraybuffer";
+        ws.onopen = function (event) {
+            showMessages("连接服务器成功！");
+            showMessages("会话号：" + roomNumber + "，创建会话成功，可以开始聊天了~")
+            sendData(ProtocolEnum.createRoom, roomNumber)
+        }
+        ws.onmessage = function onMessageEvent(event) {
+            let jsonDict = JSON.parse(event.data);
+            let protocol = jsonDict["protocol"]
+            let roomNumber = jsonDict["roomNumber"]
+            let userName = jsonDict["userName"]
+            let content = jsonDict["content"]
+            let language = jsonDict["language"]
+            if (protocol == ProtocolEnum.sendFile) {
+                let imgfilepath = jsonDict["filepath"]
+                // var img=document.createElement("img");
+                // img.src = content;
+                // img.style.width="200px";
+  
+                $("#messageImgs").append("<tr><td><img src=''"+imgfilepath+"' width=200 /></td><td></td></tr>")
+                // document.getElementById("messageImgs").append(img);
+                // sendData(ProtocolEnum.sendContent, roomNumber, userName, "给你发了一张图片")
+            } else {
+                // 这一步有问题，不知道为什么会收到没有内容的
+                if (userName.length <= 0 || content.length <= 0) { 
+                    return;
+                }
+                if (language == yourSelectedLanguage) {
+                    showMessages(userName + "：" + content)
+                    return 
+                }
+                translateText(content, function (data) {
+                    if (data.data == "success") {
+                        showMessages(userName + "：" + data.content)
+                    } else {
+                        alert(data.data)
+                    }
+                })
+            }
+        };
+        ws.onclose = function (event) {
+            showMessages("服务器断开连接。");
+            showMessages(event);
+            console.log(event)
+        }
+        ws.onerror = function (event) {
+            showMessages("连接发错了错误！");
+            showMessages(event);
+        } 
+    }
+
+    // 监听窗口关闭事件，当窗口关闭时，主动去关闭websocket连接，防止连接还没断开就关闭窗口，server端会抛异常。
+    window.onbeforeunload = function() {
+        ws.close();
+    } 
+
+
+    // WebSocket状态 
+    // WebSocket文档：https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/readyState
+    const WebSocketStateEnum = {
+        CONNECTING: 0,
+        OPEN: 1,
+        CLOSING: 2,
+        CLOSED: 3
+    }
+
+    // 协议枚举
+    const ProtocolEnum = {
+        createRoom: 1001,
+        sendContent: 1002,
+        sendFile: 1003
+    }
+    // 发送数据到服务器
+    function sendData(protocolEnumVal, roomNumber, userName="", content="") {
+        let data = {
+            "protocol" : protocolEnumVal,
+            "roomNumber" : roomNumber,
+            "userName": userName,
+            "content" : content,
+            "language" : yourSelectedLanguage
+        }
+        console.log(data)
+        let jsonData = JSON.stringify(data)
+        ws.send(jsonData);
+    }
+
+    function sendFile() {
+        var userName = document.getElementById("userName").value;
+        if (userName.length <= 0) {
+            document.getElementById("userName").focus();
+            alert("请输入昵称")
+            return
+        }
+
+        var file = document.getElementById('filename').files[0];
+        var reader = new FileReader();
+        var rawData = new ArrayBuffer();            
+        reader.loadend = function() {
+        }
+
+        reader.onload = function(e) {
+            rawData = e.target.result; 
+            sendData(ProtocolEnum.sendFile, roomNumber, userName, rawData)
+            console.log("the File has been transferred.")
+        }
+        //reader.readAsArrayBuffer(file);
+        reader.readAsDataURL(file);
+    }
+
+    function encodeByUTF8(str) {
+        var enc = new TextEncoder();
+        return enc.encode(str)
+    }
+
+    function decodeByUTF8(str) {
+        var enc = new TextDecoder();
+        return enc.decode(str)
+    }
+
+    function ab2str(buf) {
+        // https://developers.google.com/web/updates/2012/06/How-to-convert-ArrayBuffer-to-and-from-String
+        return String.fromCharCode.apply(null, new Uint16Array(buf));
+    }
+
+    function str2ab(str) {
+        // https://developers.google.com/web/updates/2012/06/How-to-convert-ArrayBuffer-to-and-from-String
+        var buf = new ArrayBuffer(str.length*2); // 2 bytes for each char
+        var bufView = new Uint16Array(buf);
+        for (var i=0, strLen=str.length; i < strLen; i++) {
+            bufView[i] = str.charCodeAt(i);
+        }
+        return buf;
+    }
+
+    // https://www.toptal.com/tornado/simple-python-websocket-server
+    </script>
+
+</body>
+</html>
